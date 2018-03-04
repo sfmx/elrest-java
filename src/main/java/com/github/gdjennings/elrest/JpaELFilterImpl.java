@@ -469,9 +469,20 @@ public class JpaELFilterImpl<E> extends ELFilter<E> {
 		Type idType = countRoot.getModel().getIdType();
 
 		if (supportsCountDistinct() || (idType != null && Type.PersistenceType.BASIC.equals(idType.getPersistenceType()))) {
+			Iterator<Attribute<E,?>> entityFields = countRoot.getModel().getDeclaredAttributes().iterator();
+			List<Expression<?>> groupBys = new ArrayList<>();
+
+			while (entityFields.hasNext()) {
+				Attribute field = entityFields.next();
+				if(((SingularAttribute)field).isId()) {
+					groupBys.add(countRoot.get(field.getName()));
+				}
+			}
+
 			prepareQuery(countQ, countRoot, joins);
-			countQ.select(build.countDistinct(countRoot));
-			return em.createQuery(countQ).getSingleResult();
+			countQ.groupBy(groupBys);
+			countQ.select(this.build.sum(build.count(countRoot)));
+
 		} else {
 			Iterator<SingularAttribute<? super E, ?>> pkFields = countRoot.getModel().getIdClassAttributes().iterator();
 			SingularAttribute first = pkFields.next();
@@ -487,8 +498,9 @@ public class JpaELFilterImpl<E> extends ELFilter<E> {
 
 			countQ.select(build.sum(build.countDistinct(countRoot.get(first.getName())))).distinct(false);
 
-			return em.createQuery(countQ).getSingleResult();
 		}
+
+		return em.createQuery(countQ).getSingleResult();
 	}
 
 
